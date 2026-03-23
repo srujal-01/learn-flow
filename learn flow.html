@@ -1,0 +1,850 @@
+<!doctype html>
+<html lang="en" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LearnFlow LMS</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="/_sdk/data_sdk.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Playfair+Display:wght@600;700&amp;display=swap" rel="stylesheet">
+  <style>
+html, body { height: 100%; margin: 0; }
+* { box-sizing: border-box; }
+body { font-family: 'DM Sans', sans-serif; }
+.font-display { font-family: 'Playfair Display', serif; }
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+/* Animations */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.animate-fade-up { animation: fadeUp 0.5s ease forwards; }
+.animate-slide-in { animation: slideIn 0.4s ease forwards; }
+
+/* Progress ring */
+.progress-ring-circle {
+  transition: stroke-dashoffset 0.5s ease;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+/* YouTube iframe container */
+.video-container {
+  position: relative;
+  padding-bottom: 56.25%;
+  height: 0;
+  overflow: hidden;
+  border-radius: 12px;
+}
+.video-container iframe {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  border: 0;
+  border-radius: 12px;
+}
+
+/* Lesson item */
+.lesson-item { transition: all 0.2s ease; }
+.lesson-item:hover { transform: translateX(4px); }
+.lesson-item.active { border-left: 3px solid #f59e0b; }
+
+/* Toast */
+.toast {
+  animation: fadeUp 0.3s ease forwards;
+  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+  padding: 12px 20px; border-radius: 10px; color: #fff;
+  font-size: 14px; font-weight: 500;
+}
+.toast.success { background: #059669; }
+.toast.error { background: #dc2626; }
+
+/* Card hover */
+.course-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.course-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+}
+
+/* Tab active indicator */
+.tab-active {
+  position: relative;
+}
+.tab-active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px; left: 0; right: 0;
+  height: 2px;
+  background: #f59e0b;
+  border-radius: 1px;
+}
+
+/* Input focus */
+input:focus {
+  outline: none;
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245,158,11,0.15);
+}
+</style>
+  <style>body { box-sizing: border-box; }</style>
+ </head>
+ <body class="h-full bg-slate-950 text-slate-100 overflow-auto">
+  <div id="app" class="h-full w-full flex flex-col">
+   <!-- NAVBAR -->
+   <nav id="navbar" class="w-full flex items-center justify-between px-6 py-4 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 sticky top-0 z-50">
+    <div class="flex items-center gap-2 cursor-pointer" onclick="navigate('home')">
+     <div class="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center">
+      <i data-lucide="play" style="width:16px;height:16px;color:#0f172a"></i>
+     </div><span id="nav-brand" class="font-display text-lg font-bold text-amber-400">LearnFlow</span>
+    </div>
+    <div id="nav-actions" class="flex items-center gap-3"></div>
+   </nav><!-- MAIN CONTENT -->
+   <main id="main-content" class="flex-1 w-full overflow-auto"></main>
+  </div><!-- TOAST CONTAINER -->
+  <div id="toast-container"></div>
+  <script>
+// ========== STATE ==========
+let currentUser = null; // { username, email, token }
+let allData = [];
+let currentPage = 'home';
+let currentCourseId = null;
+let currentLessonId = null;
+
+// ========== COURSE DATA (Reference Content - Paradigm A) ==========
+const COURSES = [
+  {
+    id: 'java',
+    title: 'Java Programming Masterclass',
+    instructor: 'Aleks Popovic',
+    thumbnail: '☕',
+    color: '#ea580c',
+    description: 'Complete Java programming from beginner to advanced. Cover OOP, data structures, algorithms, and build real-world projects.',
+    learns: ['Core Java fundamentals & syntax', 'Object-Oriented Programming', 'Collections Framework', 'Exception handling & File I/O', 'Multithreading & Concurrency'],
+    lessons: [
+      { id: 'java-1', title: 'Introduction to Java', duration: '15:30', videoUrl: 'https://www.youtube.com/watch?v=eIrMbAQSU34' },
+      { id: 'java-2', title: 'Variables & Data Types', duration: '22:10', videoUrl: 'https://www.youtube.com/watch?v=le-URjBhevE' },
+      { id: 'java-3', title: 'Control Flow Statements', duration: '18:45', videoUrl: 'https://www.youtube.com/watch?v=ldYLYRNaucM' },
+      { id: 'java-4', title: 'OOP Concepts', duration: '28:00', videoUrl: 'https://www.youtube.com/watch?v=pTB0EiLXUC8' },
+      { id: 'java-5', title: 'Collections & Generics', duration: '25:15', videoUrl: 'https://www.youtube.com/watch?v=GdAon80-0KA' }
+    ]
+  },
+  {
+    id: 'python',
+    title: 'Python for Data Science',
+    instructor: 'Sarah Chen',
+    thumbnail: '🐍',
+    color: '#2563eb',
+    description: 'Learn Python from scratch and apply it to data science. Master pandas, numpy, matplotlib, and machine learning basics.',
+    learns: ['Python fundamentals', 'NumPy & Pandas', 'Data visualization with Matplotlib', 'Intro to Machine Learning', 'Real-world data projects'],
+    lessons: [
+      { id: 'py-1', title: 'Python Basics', duration: '20:00', videoUrl: 'https://www.youtube.com/watch?v=kqtD5dpn9C8' },
+      { id: 'py-2', title: 'Lists, Tuples & Dicts', duration: '18:30', videoUrl: 'https://www.youtube.com/watch?v=W8KRzm-HUcc' },
+      { id: 'py-3', title: 'Functions & Modules', duration: '22:00', videoUrl: 'https://www.youtube.com/watch?v=9Os0o3wzS_I' },
+      { id: 'py-4', title: 'NumPy Fundamentals', duration: '25:00', videoUrl: 'https://www.youtube.com/watch?v=QUT1VHiLmmI' },
+      { id: 'py-5', title: 'Pandas DataFrames', duration: '30:00', videoUrl: 'https://www.youtube.com/watch?v=vmEHCJofslg' }
+    ]
+  },
+  {
+    id: 'ml',
+    title: 'Machine Learning A-Z',
+    instructor: 'Dr. Raj Patel',
+    thumbnail: '🤖',
+    color: '#7c3aed',
+    description: 'Comprehensive machine learning course covering supervised, unsupervised learning, neural networks, and deployment.',
+    learns: ['Linear & Logistic Regression', 'Decision Trees & Random Forests', 'Neural Networks basics', 'Model evaluation & tuning', 'Deploying ML models'],
+    lessons: [
+      { id: 'ml-1', title: 'What is Machine Learning?', duration: '12:00', videoUrl: 'https://www.youtube.com/watch?v=ukzFI9rgwfU' },
+      { id: 'ml-2', title: 'Linear Regression', duration: '28:00', videoUrl: 'https://www.youtube.com/watch?v=nk2CQITm_eo' },
+      { id: 'ml-3', title: 'Classification Algorithms', duration: '32:00', videoUrl: 'https://www.youtube.com/watch?v=sgQAhG5Q7iY' },
+      { id: 'ml-4', title: 'Clustering Methods', duration: '24:00', videoUrl: 'https://www.youtube.com/watch?v=4b5d3muPQmA' },
+      { id: 'ml-5', title: 'Neural Network Intro', duration: '35:00', videoUrl: 'https://www.youtube.com/watch?v=aircAruvnKk' }
+    ]
+  },
+  {
+    id: 'webdev',
+    title: 'Full-Stack Web Development',
+    instructor: 'Maria Lopez',
+    thumbnail: '🌐',
+    color: '#059669',
+    description: 'Build modern web applications from front to back. HTML, CSS, JavaScript, React, Node.js and databases.',
+    learns: ['HTML5 & CSS3', 'Modern JavaScript (ES6+)', 'React.js fundamentals', 'Node.js & Express', 'Database design & APIs'],
+    lessons: [
+      { id: 'web-1', title: 'HTML Fundamentals', duration: '16:00', videoUrl: 'https://www.youtube.com/watch?v=qz0aGYrrlhU' },
+      { id: 'web-2', title: 'CSS Layouts & Flexbox', duration: '24:00', videoUrl: 'https://www.youtube.com/watch?v=fYq5PXgSsbE' },
+      { id: 'web-3', title: 'JavaScript Essentials', duration: '30:00', videoUrl: 'https://www.youtube.com/watch?v=hdI2bqOjy3c' },
+      { id: 'web-4', title: 'React Components', duration: '28:00', videoUrl: 'https://www.youtube.com/watch?v=Ke90Tje7VS0' },
+      { id: 'web-5', title: 'Building REST APIs', duration: '26:00', videoUrl: 'https://www.youtube.com/watch?v=pKd0Rpw7O48' }
+    ]
+  }
+];
+
+// ========== DEFAULT CONFIG ==========
+const defaultConfig = {
+  platform_name: 'LearnFlow',
+  hero_title: 'Master New Skills, Transform Your Career',
+  hero_subtitle: 'Learn from expert instructors with structured courses and track your progress every step of the way.',
+  background_color: '#0f172a',
+  surface_color: '#1e293b',
+  text_color: '#e2e8f0',
+  primary_action_color: '#f59e0b',
+  secondary_action_color: '#64748b',
+  font_family: 'DM Sans',
+  font_size: 16
+};
+
+// ========== HELPERS ==========
+function showToast(msg, type = 'success') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+function simpleHash(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0;
+  }
+  return 'h_' + Math.abs(hash).toString(36);
+}
+
+function generateToken(username) {
+  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const payload = btoa(JSON.stringify({ sub: username, iat: Date.now(), exp: Date.now() + 86400000 }));
+  const sig = btoa(username + Date.now());
+  return `${header}.${payload}.${sig}`;
+}
+
+function getUserData(type) {
+  if (!currentUser) return [];
+  return allData.filter(d => d.type === type && d.username === currentUser.username);
+}
+
+function isEnrolled(courseId) {
+  return getUserData('enrollment').some(e => e.course_id === courseId);
+}
+
+function getCompletedLessons(courseId) {
+  return getUserData('progress').filter(p => p.course_id === courseId && p.completed);
+}
+
+function getCourseProgress(courseId) {
+  const course = COURSES.find(c => c.id === courseId);
+  if (!course) return 0;
+  const completed = getCompletedLessons(courseId).length;
+  return Math.round((completed / course.lessons.length) * 100);
+}
+
+// ========== AUTH ==========
+function checkAuth() {
+  const stored = allData.find(d => d.type === 'session');
+  if (stored) {
+    const user = allData.find(d => d.type === 'user' && d.username === stored.username);
+    if (user) {
+      currentUser = { username: user.username, email: user.email, token: stored.token };
+    }
+  }
+  renderNavActions();
+}
+
+// ========== NAVIGATION ==========
+function navigate(page, data) {
+  currentPage = page;
+  if (data) {
+    if (data.courseId) currentCourseId = data.courseId;
+    if (data.lessonId) currentLessonId = data.lessonId;
+  }
+  renderPage();
+  window.scrollTo(0, 0);
+}
+
+// ========== RENDER NAV ==========
+function renderNavActions() {
+  const c = document.getElementById('nav-actions');
+  if (currentUser) {
+    c.innerHTML = `
+      <span class="text-sm text-slate-400 hidden sm:inline">Welcome, <span class="text-amber-400 font-semibold">${currentUser.username}</span></span>
+      <button onclick="navigate('dashboard')" class="px-3 py-2 text-sm rounded-lg bg-slate-800 hover:bg-slate-700 transition flex items-center gap-1.5">
+        <i data-lucide="layout-dashboard" style="width:14px;height:14px"></i>
+        <span class="hidden sm:inline">My Courses</span>
+      </button>
+      <button onclick="handleLogout()" class="px-3 py-2 text-sm rounded-lg bg-slate-800 hover:bg-red-900/50 text-red-400 transition flex items-center gap-1.5">
+        <i data-lucide="log-out" style="width:14px;height:14px"></i>
+        <span class="hidden sm:inline">Logout</span>
+      </button>`;
+  } else {
+    c.innerHTML = `
+      <button onclick="navigate('signin')" class="px-4 py-2 text-sm rounded-lg bg-slate-800 hover:bg-slate-700 transition">Sign In</button>
+      <button onclick="navigate('signup')" class="px-4 py-2 text-sm rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold transition">Sign Up</button>`;
+  }
+  lucide.createIcons();
+}
+
+// ========== PAGE RENDERERS ==========
+function renderPage() {
+  const main = document.getElementById('main-content');
+  switch(currentPage) {
+    case 'home': renderHome(main); break;
+    case 'signin': renderSignIn(main); break;
+    case 'signup': renderSignUp(main); break;
+    case 'course': renderCourseDetail(main); break;
+    case 'learn': renderLearnPage(main); break;
+    case 'dashboard': renderDashboard(main); break;
+    default: renderHome(main);
+  }
+  renderNavActions();
+  lucide.createIcons();
+}
+
+// ---- HOME ----
+function renderHome(el) {
+  const cfg = window.elementSdk?.config || defaultConfig;
+  el.innerHTML = `
+    <section class="w-full px-6 py-16 sm:py-24 text-center">
+      <div class="max-w-3xl mx-auto animate-fade-up">
+        <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm mb-6">
+          <i data-lucide="sparkles" style="width:14px;height:14px"></i> Start Learning Today
+        </div>
+        <h1 id="hero-title" class="font-display text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight">${cfg.hero_title || defaultConfig.hero_title}</h1>
+        <p id="hero-subtitle" class="text-slate-400 text-lg sm:text-xl mb-10 max-w-2xl mx-auto leading-relaxed">${cfg.hero_subtitle || defaultConfig.hero_subtitle}</p>
+        <button onclick="navigate(currentUser ? 'dashboard' : 'signup')" class="px-8 py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded-xl text-lg transition transform hover:scale-105">
+          ${currentUser ? 'Go to Dashboard' : 'Get Started Free'} →
+        </button>
+      </div>
+    </section>
+    <section class="w-full px-6 pb-16">
+      <div class="max-w-6xl mx-auto">
+        <h2 class="font-display text-2xl sm:text-3xl font-bold mb-8 text-center">Explore Courses</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          ${COURSES.map((c, i) => `
+            <div class="course-card bg-slate-900 rounded-2xl overflow-hidden border border-slate-800 cursor-pointer animate-fade-up" style="animation-delay:${i * 0.1}s" onclick="navigate('course', {courseId:'${c.id}'})">
+              <div class="h-36 flex items-center justify-center text-6xl" style="background:linear-gradient(135deg, ${c.color}22, ${c.color}44)">${c.thumbnail}</div>
+              <div class="p-5">
+                <h3 class="font-semibold text-base mb-1.5">${c.title}</h3>
+                <p class="text-slate-400 text-sm mb-3">${c.instructor}</p>
+                <div class="flex items-center gap-3 text-xs text-slate-500">
+                  <span class="flex items-center gap-1"><i data-lucide="book-open" style="width:12px;height:12px"></i> ${c.lessons.length} lessons</span>
+                  <span class="flex items-center gap-1"><i data-lucide="clock" style="width:12px;height:12px"></i> ${c.lessons.reduce((a,l) => a + parseInt(l.duration), 0)} min</span>
+                </div>
+                ${isEnrolled(c.id) ? `<div class="mt-3 w-full bg-slate-800 rounded-full h-1.5"><div class="h-1.5 rounded-full bg-amber-500" style="width:${getCourseProgress(c.id)}%"></div></div>` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </section>`;
+}
+
+// ---- SIGN IN ----
+function renderSignIn(el) {
+  el.innerHTML = `
+    <div class="flex items-center justify-center min-h-full px-6 py-16">
+      <div class="w-full max-w-sm animate-fade-up">
+        <div class="text-center mb-8">
+          <div class="w-14 h-14 bg-amber-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <i data-lucide="log-in" style="width:24px;height:24px;color:#0f172a"></i>
+          </div>
+          <h1 class="font-display text-2xl font-bold">Welcome Back</h1>
+          <p class="text-slate-400 text-sm mt-1">Sign in to continue learning</p>
+        </div>
+        <form id="signin-form" class="space-y-4">
+          <div>
+            <label for="si-user" class="block text-sm font-medium text-slate-300 mb-1.5">Username</label>
+            <input id="si-user" type="text" required class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-slate-100 placeholder-slate-500" placeholder="Your username">
+          </div>
+          <div>
+            <label for="si-pass" class="block text-sm font-medium text-slate-300 mb-1.5">Password</label>
+            <input id="si-pass" type="password" required class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-slate-100 placeholder-slate-500" placeholder="Your password">
+          </div>
+          <div id="si-error" class="text-red-400 text-sm hidden"></div>
+          <button type="submit" id="si-btn" class="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded-xl transition">Sign In</button>
+        </form>
+        <p class="text-center text-sm text-slate-400 mt-6">Don't have an account? <span class="text-amber-400 cursor-pointer hover:underline" onclick="navigate('signup')">Sign Up</span></p>
+      </div>
+    </div>`;
+  document.getElementById('signin-form').addEventListener('submit', handleSignIn);
+}
+
+async function handleSignIn(e) {
+  e.preventDefault();
+  const btn = document.getElementById('si-btn');
+  const errEl = document.getElementById('si-error');
+  const username = document.getElementById('si-user').value.trim();
+  const password = document.getElementById('si-pass').value;
+  errEl.classList.add('hidden');
+
+  if (!username || !password) { errEl.textContent = 'Please fill in all fields.'; errEl.classList.remove('hidden'); return; }
+
+  btn.disabled = true; btn.textContent = 'Signing in...';
+  const hash = simpleHash(password);
+  const user = allData.find(d => d.type === 'user' && d.username === username && d.password_hash === hash);
+
+  if (!user) {
+    errEl.textContent = 'Invalid username or password.';
+    errEl.classList.remove('hidden');
+    btn.disabled = false; btn.textContent = 'Sign In';
+    return;
+  }
+
+  const token = generateToken(username);
+  // Remove old sessions for this user
+  const oldSessions = allData.filter(d => d.type === 'session' && d.username === username);
+  for (const s of oldSessions) await window.dataSdk.delete(s);
+
+  const res = await window.dataSdk.create({ type: 'session', username, token });
+  if (res.isOk) {
+    currentUser = { username, email: user.email, token };
+    showToast(`Welcome back, ${username}!`);
+    navigate('dashboard');
+  } else {
+    errEl.textContent = 'Something went wrong. Try again.';
+    errEl.classList.remove('hidden');
+  }
+  btn.disabled = false; btn.textContent = 'Sign In';
+}
+
+// ---- SIGN UP ----
+function renderSignUp(el) {
+  el.innerHTML = `
+    <div class="flex items-center justify-center min-h-full px-6 py-16">
+      <div class="w-full max-w-sm animate-fade-up">
+        <div class="text-center mb-8">
+          <div class="w-14 h-14 bg-amber-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <i data-lucide="user-plus" style="width:24px;height:24px;color:#0f172a"></i>
+          </div>
+          <h1 class="font-display text-2xl font-bold">Create Account</h1>
+          <p class="text-slate-400 text-sm mt-1">Start your learning journey</p>
+        </div>
+        <form id="signup-form" class="space-y-4">
+          <div>
+            <label for="su-user" class="block text-sm font-medium text-slate-300 mb-1.5">Username</label>
+            <input id="su-user" type="text" required class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-slate-100 placeholder-slate-500" placeholder="Choose a username">
+          </div>
+          <div>
+            <label for="su-email" class="block text-sm font-medium text-slate-300 mb-1.5">Email</label>
+            <input id="su-email" type="email" required class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-slate-100 placeholder-slate-500" placeholder="your@email.com">
+          </div>
+          <div>
+            <label for="su-pass" class="block text-sm font-medium text-slate-300 mb-1.5">Password</label>
+            <input id="su-pass" type="password" required minlength="4" class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-slate-100 placeholder-slate-500" placeholder="Min. 4 characters">
+          </div>
+          <div id="su-error" class="text-red-400 text-sm hidden"></div>
+          <button type="submit" id="su-btn" class="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded-xl transition">Create Account</button>
+        </form>
+        <p class="text-center text-sm text-slate-400 mt-6">Already have an account? <span class="text-amber-400 cursor-pointer hover:underline" onclick="navigate('signin')">Sign In</span></p>
+      </div>
+    </div>`;
+  document.getElementById('signup-form').addEventListener('submit', handleSignUp);
+}
+
+async function handleSignUp(e) {
+  e.preventDefault();
+  const btn = document.getElementById('su-btn');
+  const errEl = document.getElementById('su-error');
+  const username = document.getElementById('su-user').value.trim();
+  const email = document.getElementById('su-email').value.trim();
+  const password = document.getElementById('su-pass').value;
+  errEl.classList.add('hidden');
+
+  if (!username || !email || !password) { errEl.textContent = 'Please fill in all fields.'; errEl.classList.remove('hidden'); return; }
+  if (password.length < 4) { errEl.textContent = 'Password must be at least 4 characters.'; errEl.classList.remove('hidden'); return; }
+
+  const exists = allData.find(d => d.type === 'user' && d.username === username);
+  if (exists) { errEl.textContent = 'Username already taken.'; errEl.classList.remove('hidden'); return; }
+
+  btn.disabled = true; btn.textContent = 'Creating account...';
+  const hash = simpleHash(password);
+  const res = await window.dataSdk.create({ type: 'user', username, email, password_hash: hash, token: '' });
+
+  if (res.isOk) {
+    const token = generateToken(username);
+    await window.dataSdk.create({ type: 'session', username, token });
+    currentUser = { username, email, token };
+    showToast('Account created! Welcome aboard 🎉');
+    navigate('home');
+  } else {
+    errEl.textContent = 'Something went wrong. Try again.';
+    errEl.classList.remove('hidden');
+  }
+  btn.disabled = false; btn.textContent = 'Create Account';
+}
+
+function handleLogout() {
+  const sessions = allData.filter(d => d.type === 'session' && d.username === currentUser?.username);
+  sessions.forEach(s => window.dataSdk.delete(s));
+  currentUser = null;
+  showToast('Logged out successfully');
+  navigate('home');
+}
+
+// ---- COURSE DETAIL ----
+function renderCourseDetail(el) {
+  const course = COURSES.find(c => c.id === currentCourseId);
+  if (!course) { navigate('home'); return; }
+  const enrolled = isEnrolled(course.id);
+  const progress = getCourseProgress(course.id);
+  const completedLessons = getCompletedLessons(course.id);
+  const totalDuration = course.lessons.reduce((a, l) => a + parseInt(l.duration), 0);
+
+  el.innerHTML = `
+    <div class="w-full">
+      <!-- Hero -->
+      <div class="w-full px-6 py-12" style="background:linear-gradient(135deg, ${course.color}15, ${course.color}30)">
+        <div class="max-w-4xl mx-auto animate-fade-up">
+          <button onclick="navigate('home')" class="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 text-sm mb-6 transition">
+            <i data-lucide="arrow-left" style="width:14px;height:14px"></i> Back to Courses
+          </button>
+          <div class="flex flex-col sm:flex-row gap-6 items-start">
+            <div class="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl shrink-0" style="background:${course.color}33">${course.thumbnail}</div>
+            <div class="flex-1">
+              <h1 class="font-display text-3xl font-bold mb-2">${course.title}</h1>
+              <p class="text-slate-400 mb-3">by ${course.instructor}</p>
+              <div class="flex flex-wrap gap-4 text-sm text-slate-400 mb-4">
+                <span class="flex items-center gap-1.5"><i data-lucide="book-open" style="width:14px;height:14px"></i> ${course.lessons.length} Lessons</span>
+                <span class="flex items-center gap-1.5"><i data-lucide="clock" style="width:14px;height:14px"></i> ${totalDuration} min</span>
+                ${enrolled ? `<span class="flex items-center gap-1.5 text-amber-400"><i data-lucide="check-circle" style="width:14px;height:14px"></i> Enrolled</span>` : ''}
+              </div>
+              ${enrolled
+                ? `<div class="flex items-center gap-3">
+                    <div class="flex-1 max-w-xs bg-slate-800 rounded-full h-2"><div class="h-2 rounded-full bg-amber-500 transition-all" style="width:${progress}%"></div></div>
+                    <span class="text-sm text-amber-400 font-semibold">${progress}%</span>
+                    <button onclick="startLearning('${course.id}')" class="ml-4 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded-xl transition text-sm">${progress > 0 ? 'Continue Learning' : 'Start Learning'}</button>
+                  </div>`
+                : `<button onclick="enrollCourse('${course.id}')" id="enroll-btn" class="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded-xl transition">Enroll Now — Free</button>`
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Content -->
+      <div class="max-w-4xl mx-auto px-6 py-10">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div class="lg:col-span-2 space-y-8">
+            <div>
+              <h2 class="font-display text-xl font-bold mb-3">About This Course</h2>
+              <p class="text-slate-400 leading-relaxed">${course.description}</p>
+            </div>
+            <div>
+              <h2 class="font-display text-xl font-bold mb-3">What You'll Learn</h2>
+              <div class="space-y-2">
+                ${course.learns.map(l => `
+                  <div class="flex items-start gap-2.5">
+                    <i data-lucide="check" style="width:16px;height:16px;color:#f59e0b;margin-top:2px;flex-shrink:0"></i>
+                    <span class="text-slate-300 text-sm">${l}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+          <div>
+            <h2 class="font-display text-xl font-bold mb-3">Lessons</h2>
+            <div class="space-y-2">
+              ${course.lessons.map((l, i) => {
+                const done = completedLessons.some(p => p.lesson_id === l.id);
+                return `
+                  <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-900 border border-slate-800 ${enrolled ? 'cursor-pointer hover:border-slate-600' : 'opacity-60'}" ${enrolled ? `onclick="navigate('learn', {courseId:'${course.id}', lessonId:'${l.id}'})"` : ''}>
+                    <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${done ? 'bg-green-500/20 text-green-400' : 'bg-slate-800 text-slate-400'}">
+                      ${done ? '<i data-lucide="check" style="width:12px;height:12px"></i>' : i + 1}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-medium truncate">${l.title}</p>
+                      <p class="text-xs text-slate-500">${l.duration}</p>
+                    </div>
+                  </div>`;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function enrollCourse(courseId) {
+  if (!currentUser) { navigate('signin'); return; }
+  const btn = document.getElementById('enroll-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Enrolling...'; }
+
+  if (allData.filter(d => d.type === 'enrollment').length >= 999) {
+    showToast('Storage limit reached.', 'error');
+    return;
+  }
+
+  const res = await window.dataSdk.create({
+    type: 'enrollment',
+    username: currentUser.username,
+    course_id: courseId,
+    enrolled_at: new Date().toISOString()
+  });
+
+  if (res.isOk) {
+    showToast('Enrolled successfully! 🎉');
+    // Small delay to let data sync
+    setTimeout(() => navigate('course', { courseId }), 300);
+  } else {
+    showToast('Failed to enroll. Try again.', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Enroll Now — Free'; }
+  }
+}
+
+function startLearning(courseId) {
+  const course = COURSES.find(c => c.id === courseId);
+  if (!course) return;
+  const completed = getCompletedLessons(courseId);
+  const completedIds = new Set(completed.map(p => p.lesson_id));
+  // Find first incomplete lesson, or first lesson
+  const nextLesson = course.lessons.find(l => !completedIds.has(l.id)) || course.lessons[0];
+  navigate('learn', { courseId, lessonId: nextLesson.id });
+}
+
+// ---- LEARN PAGE ----
+function renderLearnPage(el) {
+  if (!currentUser) { navigate('signin'); return; }
+  const course = COURSES.find(c => c.id === currentCourseId);
+  if (!course) { navigate('home'); return; }
+
+  const lessonIdx = course.lessons.findIndex(l => l.id === currentLessonId);
+  const lesson = course.lessons[lessonIdx] || course.lessons[0];
+  const completedLessons = getCompletedLessons(course.id);
+  const isComplete = completedLessons.some(p => p.lesson_id === lesson.id);
+  const progress = getCourseProgress(course.id);
+  const prevLesson = lessonIdx > 0 ? course.lessons[lessonIdx - 1] : null;
+  const nextLesson = lessonIdx < course.lessons.length - 1 ? course.lessons[lessonIdx + 1] : null;
+
+  el.innerHTML = `
+    <div class="w-full h-full flex flex-col lg:flex-row">
+      <!-- Sidebar -->
+      <aside class="w-full lg:w-80 bg-slate-900 border-b lg:border-b-0 lg:border-r border-slate-800 overflow-auto shrink-0 order-2 lg:order-1">
+        <div class="p-4 border-b border-slate-800">
+          <button onclick="navigate('course', {courseId:'${course.id}'})" class="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 text-sm mb-3 transition">
+            <i data-lucide="arrow-left" style="width:14px;height:14px"></i> Course Overview
+          </button>
+          <h2 class="font-semibold text-sm truncate">${course.title}</h2>
+          <div class="flex items-center gap-2 mt-2">
+            <div class="flex-1 bg-slate-800 rounded-full h-1.5"><div class="h-1.5 rounded-full bg-amber-500 transition-all" style="width:${progress}%"></div></div>
+            <span class="text-xs text-amber-400 font-semibold">${progress}%</span>
+          </div>
+        </div>
+        <div class="p-3 space-y-1">
+          ${course.lessons.map((l, i) => {
+            const done = completedLessons.some(p => p.lesson_id === l.id);
+            const active = l.id === lesson.id;
+            return `
+              <div class="lesson-item flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition ${active ? 'active bg-amber-500/10 border-l-amber-500' : 'hover:bg-slate-800'}" onclick="navigate('learn', {courseId:'${course.id}', lessonId:'${l.id}'})">
+                <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${done ? 'bg-green-500/20 text-green-400' : active ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-800 text-slate-500'}">
+                  ${done ? '✓' : i + 1}
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm ${active ? 'text-amber-400 font-medium' : 'text-slate-300'} truncate">${l.title}</p>
+                  <p class="text-xs text-slate-500">${l.duration}</p>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
+      </aside>
+
+      <!-- Video Area -->
+      <div class="flex-1 overflow-auto order-1 lg:order-2">
+        <div class="max-w-4xl mx-auto p-4 sm:p-6">
+          <div class="video-container mb-6 bg-slate-900 border border-slate-800">
+            <iframe
+              src="${lesson.videoUrl}?rel=0&modestbranding=1"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowfullscreen
+              title="${lesson.title}">
+            </iframe>
+          </div>
+
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+              <p class="text-xs text-slate-500 uppercase tracking-wide mb-1">Lesson ${lessonIdx + 1} of ${course.lessons.length}</p>
+              <h1 class="font-display text-xl sm:text-2xl font-bold">${lesson.title}</h1>
+            </div>
+            <button id="complete-btn" onclick="toggleComplete('${course.id}', '${lesson.id}')" class="px-5 py-2.5 rounded-xl font-semibold text-sm transition flex items-center gap-2 shrink-0 ${isComplete ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-amber-500 text-slate-900 hover:bg-amber-400'}">
+              <i data-lucide="${isComplete ? 'check-circle' : 'circle'}" style="width:16px;height:16px"></i>
+              ${isComplete ? 'Completed' : 'Mark as Complete'}
+            </button>
+          </div>
+
+          <!-- Navigation -->
+          <div class="flex items-center justify-between pt-4 border-t border-slate-800">
+            ${prevLesson
+              ? `<button onclick="navigate('learn', {courseId:'${course.id}', lessonId:'${prevLesson.id}'})" class="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-200 transition"><i data-lucide="chevron-left" style="width:16px;height:16px"></i> ${prevLesson.title}</button>`
+              : '<div></div>'
+            }
+            ${nextLesson
+              ? `<button onclick="navigate('learn', {courseId:'${course.id}', lessonId:'${nextLesson.id}'})" class="flex items-center gap-2 text-sm text-amber-400 hover:text-amber-300 transition">${nextLesson.title} <i data-lucide="chevron-right" style="width:16px;height:16px"></i></button>`
+              : `<span class="text-sm text-green-400 font-medium">🎉 Last Lesson!</span>`
+            }
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function toggleComplete(courseId, lessonId) {
+  if (!currentUser) return;
+  const btn = document.getElementById('complete-btn');
+  if (btn) { btn.disabled = true; }
+
+  const existing = allData.find(d => d.type === 'progress' && d.username === currentUser.username && d.course_id === courseId && d.lesson_id === lessonId && d.completed);
+
+  if (existing) {
+    const res = await window.dataSdk.delete(existing);
+    if (res.isOk) showToast('Lesson unmarked');
+    else showToast('Failed to update', 'error');
+  } else {
+    if (allData.filter(d => d.type === 'progress').length >= 999) {
+      showToast('Storage limit reached.', 'error');
+      if (btn) btn.disabled = false;
+      return;
+    }
+    const res = await window.dataSdk.create({
+      type: 'progress',
+      username: currentUser.username,
+      course_id: courseId,
+      lesson_id: lessonId,
+      completed: true,
+      completed_at: new Date().toISOString()
+    });
+    if (res.isOk) showToast('Lesson completed! 🎯');
+    else showToast('Failed to update', 'error');
+  }
+  // Re-render after short delay
+  setTimeout(() => renderPage(), 300);
+}
+
+// ---- DASHBOARD ----
+function renderDashboard(el) {
+  if (!currentUser) { navigate('signin'); return; }
+  const enrollments = getUserData('enrollment');
+  const enrolledCourses = enrollments.map(e => COURSES.find(c => c.id === e.course_id)).filter(Boolean);
+
+  el.innerHTML = `
+    <div class="max-w-5xl mx-auto px-6 py-10">
+      <div class="mb-8 animate-fade-up">
+        <h1 class="font-display text-3xl font-bold mb-2">My Learning Dashboard</h1>
+        <p class="text-slate-400">Continue where you left off, ${currentUser.username}.</p>
+      </div>
+
+      ${enrolledCourses.length === 0 ? `
+        <div class="text-center py-20 animate-fade-up">
+          <div class="text-5xl mb-4">📚</div>
+          <h2 class="font-display text-xl font-bold mb-2">No courses yet</h2>
+          <p class="text-slate-400 mb-6">Explore our catalog and enroll in your first course!</p>
+          <button onclick="navigate('home')" class="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded-xl transition">Browse Courses</button>
+        </div>
+      ` : `
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          ${enrolledCourses.map((c, i) => {
+            const prog = getCourseProgress(c.id);
+            const completed = getCompletedLessons(c.id).length;
+            return `
+              <div class="course-card bg-slate-900 rounded-2xl overflow-hidden border border-slate-800 animate-fade-up" style="animation-delay:${i * 0.1}s">
+                <div class="h-28 flex items-center justify-center text-5xl cursor-pointer" style="background:linear-gradient(135deg, ${c.color}22, ${c.color}44)" onclick="navigate('course', {courseId:'${c.id}'})">
+                  ${c.thumbnail}
+                </div>
+                <div class="p-5">
+                  <h3 class="font-semibold text-sm mb-1 cursor-pointer hover:text-amber-400 transition" onclick="navigate('course', {courseId:'${c.id}'})">${c.title}</h3>
+                  <p class="text-xs text-slate-500 mb-3">${completed}/${c.lessons.length} lessons</p>
+                  <div class="w-full bg-slate-800 rounded-full h-2 mb-3">
+                    <div class="h-2 rounded-full transition-all ${prog === 100 ? 'bg-green-500' : 'bg-amber-500'}" style="width:${prog}%"></div>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold ${prog === 100 ? 'text-green-400' : 'text-amber-400'}">${prog === 100 ? '✅ Complete!' : prog + '% done'}</span>
+                    <button onclick="startLearning('${c.id}')" class="text-xs px-3 py-1.5 bg-amber-500/10 text-amber-400 rounded-lg hover:bg-amber-500/20 transition">${prog > 0 ? 'Continue' : 'Start'}</button>
+                  </div>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
+      `}
+    </div>`;
+}
+
+// ========== DATA SDK ==========
+const dataHandler = {
+  onDataChanged(data) {
+    allData = data;
+    checkAuth();
+    // Re-render current page with updated data
+    if (currentPage && document.getElementById('main-content')) {
+      renderPage();
+    }
+  }
+};
+
+// ========== ELEMENT SDK ==========
+function applyConfig(cfg) {
+  document.body.style.backgroundColor = cfg.background_color || defaultConfig.background_color;
+  document.body.style.color = cfg.text_color || defaultConfig.text_color;
+  document.body.style.fontFamily = `${cfg.font_family || defaultConfig.font_family}, sans-serif`;
+
+  const brand = document.getElementById('nav-brand');
+  if (brand) brand.textContent = cfg.platform_name || defaultConfig.platform_name;
+
+  const heroTitle = document.getElementById('hero-title');
+  if (heroTitle) heroTitle.textContent = cfg.hero_title || defaultConfig.hero_title;
+
+  const heroSub = document.getElementById('hero-subtitle');
+  if (heroSub) heroSub.textContent = cfg.hero_subtitle || defaultConfig.hero_subtitle;
+
+  const nav = document.getElementById('navbar');
+  if (nav) nav.style.backgroundColor = (cfg.surface_color || defaultConfig.surface_color) + 'cc';
+}
+
+window.elementSdk.init({
+  defaultConfig,
+  onConfigChange: async (cfg) => applyConfig(cfg),
+  mapToCapabilities: (cfg) => ({
+    recolorables: [
+      { get: () => cfg.background_color || defaultConfig.background_color, set: (v) => { cfg.background_color = v; window.elementSdk.setConfig({ background_color: v }); } },
+      { get: () => cfg.surface_color || defaultConfig.surface_color, set: (v) => { cfg.surface_color = v; window.elementSdk.setConfig({ surface_color: v }); } },
+      { get: () => cfg.text_color || defaultConfig.text_color, set: (v) => { cfg.text_color = v; window.elementSdk.setConfig({ text_color: v }); } },
+      { get: () => cfg.primary_action_color || defaultConfig.primary_action_color, set: (v) => { cfg.primary_action_color = v; window.elementSdk.setConfig({ primary_action_color: v }); } },
+      { get: () => cfg.secondary_action_color || defaultConfig.secondary_action_color, set: (v) => { cfg.secondary_action_color = v; window.elementSdk.setConfig({ secondary_action_color: v }); } }
+    ],
+    borderables: [],
+    fontEditable: {
+      get: () => cfg.font_family || defaultConfig.font_family,
+      set: (v) => { cfg.font_family = v; window.elementSdk.setConfig({ font_family: v }); }
+    },
+    fontSizeable: {
+      get: () => cfg.font_size || defaultConfig.font_size,
+      set: (v) => { cfg.font_size = v; window.elementSdk.setConfig({ font_size: v }); }
+    }
+  }),
+  mapToEditPanelValues: (cfg) => new Map([
+    ['platform_name', cfg.platform_name || defaultConfig.platform_name],
+    ['hero_title', cfg.hero_title || defaultConfig.hero_title],
+    ['hero_subtitle', cfg.hero_subtitle || defaultConfig.hero_subtitle]
+  ])
+});
+
+// ========== INIT ==========
+(async () => {
+  const res = await window.dataSdk.init(dataHandler);
+  if (!res.isOk) console.error('Data SDK init failed');
+  renderPage();
+  lucide.createIcons();
+})();
+</script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9e0c2cd991093d29',t:'MTc3NDI1NTY4Ny4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
